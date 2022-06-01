@@ -223,6 +223,8 @@ if not os.path.exists(lib_file):
     with auto_scheduler.ApplyHistoryBest(log_file):
         with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
             lib = relay.build(mod, target=target, params=params)
+            if not os.path.exists("./lib_model"):
+                os.makedirs("./lib_model")
             lib.export_library(lib_file)
 
     dev = tvm.device(str(target), 0)
