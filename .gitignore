@@ -131,3 +131,5 @@ dmypy.json
 #lib
 ./lib_model/*
 *.json
+*.txt
+images
