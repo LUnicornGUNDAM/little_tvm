@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 #lib
-./lib_model/*
+.lib_model/*
 *.json
 *.txt
 images
