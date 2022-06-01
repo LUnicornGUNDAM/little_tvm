@@ -56,6 +56,15 @@ import time
 import os
 import gc
 
+import pynvml
+def get_gpu_name():
+    pynvml.nvmlInit()
+    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+    gpu_name = pynvml.nvmlDeviceGetName(handle)
+    gpu_name = gpu_name.replace("NVIDIA GeForce","").replace(" ","")
+    return gpu_name
+
+
 #################################################################
 # Define a Network
 # ----------------
@@ -73,7 +82,7 @@ import gc
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, default='mobilenetv2_1.0', help='a chosen model, like resnet18_v2', required=False)
-parser.add_argument("--tune", action='store_true')
+parser.add_argument("--tune", action='store_true', default=False)
 parser.add_argument('--gpu_num', type=int, default=1)
 parser.add_argument('--mode', type=int, default=0)
 parser.add_argument('--ratio', type=float, default=1.00)
@@ -82,68 +91,69 @@ args = parser.parse_args()
 print(args)
 
 pre_define_conf=[
-    ["mobilenetv2_1.0","cuda","cuda:0",320,3200,3200],
+    ["mobilenetv2_1.0","cuda","cuda:0",640,3200,3200],
     ["mobilenetv2_1.0","llvm","cpu",320,3200,3200],
-    ["resnet152_v2","cuda","cuda:0",320,3200,3200]
+    ["resnet152_v2","cuda","cuda:0",320,3200,3200],
+    ["resnet152_v2","llvm","cpu",320,3200,3200]
 ]
-
+    
 dm,tp1,tp2,bs,cbs,imgts = pre_define_conf[args.mode]
 ratio = args.ratio
 start_time = time.time()
 ####################################################################
 # Read Image
+if args.tune ==False:
+    print("######################################")
+    from os import listdir
+    from os.path import isfile, join, isdir
+    def get_all_path(open_file_path):
+        global total_file_size 
+        rootdir = open_file_path
+        path_list = []
+        list = listdir(rootdir)  # 列出文件夹下所有的目录与文件
+        for i in range(0, len(list)):
+            com_path = join(rootdir, list[i])
+            #print(com_path)
+            if isfile(com_path):
+                path_list.append(com_path)
+            if isdir(com_path):
+                path_list.extend(get_all_path(com_path))
+        #print(path_list)
+        return path_list
 
-print("######################################")
-from os import listdir
-from os.path import isfile, join, isdir
-def get_all_path(open_file_path):
-    global total_file_size 
-    rootdir = open_file_path
-    path_list = []
-    list = listdir(rootdir)  # 列出文件夹下所有的目录与文件
-    for i in range(0, len(list)):
-        com_path = join(rootdir, list[i])
-        #print(com_path)
-        if isfile(com_path):
-            path_list.append(com_path)
-        if isdir(com_path):
-            path_list.extend(get_all_path(com_path))
-    #print(path_list)
-    return path_list
 
+    from PIL import Image
+    import cv2
+    image_dict_list =[]
+    for img_path in get_all_path("images"):
+        if '.jpg' in img_path.lower():
+            image_dict_list.append(img_path)
+            #file_size += os.path.getsize(img_path)
+        elif '.jpeg' in img_path.lower():
+            image_dict_list.append(img_path)
+            #file_size += os.path.getsize(img_path)
+        elif '.png' in img_path.lower():
+            image_dict_list.append(img_path)
+            #file_size += os.path.getsize(img_path)
+        elif '.tiff' in img_path.lower():
+            image_dict_list.append(img_path)
+            #file_size += os.path.getsize(img_path)
+        elif '.tif' in img_path.lower():
+            image_dict_list.append(img_path)
+            #file_size += os.path.getsize(img_path)
+    print("Total images:{}".format(str(len(image_dict_list))))
 
-from PIL import Image
-import cv2
-image_dict_list =[]
-for img_path in get_all_path("images"):
-    if '.jpg' in img_path.lower():
-        image_dict_list.append(img_path)
-        #file_size += os.path.getsize(img_path)
-    elif '.jpeg' in img_path.lower():
-        image_dict_list.append(img_path)
-        #file_size += os.path.getsize(img_path)
-    elif '.png' in img_path.lower():
-        image_dict_list.append(img_path)
-        #file_size += os.path.getsize(img_path)
-    elif '.tiff' in img_path.lower():
-        image_dict_list.append(img_path)
-        #file_size += os.path.getsize(img_path)
-    elif '.tif' in img_path.lower():
-        image_dict_list.append(img_path)
-        #file_size += os.path.getsize(img_path)
-print("Total images:{}".format(str(len(image_dict_list))))
-
-print("Read images time:{:.2f}s".format(time.time() - start_time))
+    print("Read images time:{:.2f}s".format(time.time() - start_time))
 
 ####################################################################
 # Compile Model
-network = "mxnet"
+
 batch_size = bs
 layout = "NCHW"
 target = tvm.target.Target(tp1)
 dtype = "float32"
-log_file = "%s-%s-B%d-%s.json" % (network, layout, batch_size, target.kind.name)
-lib_file = "./lib_model/%s-%s-B%d-%s.tar" % (dm, layout, batch_size, target.kind.name)
+log_file = "%s-%s-B%d-%s-%s.json" % (dm, layout, batch_size, target.kind.name, get_gpu_name())
+lib_file = "./lib_model/%s-%s-B%d-%s-%s.tar" % (dm, layout, batch_size, target.kind.name, get_gpu_name())
 
 print("######################################")
 compile_start_time = time.time()
@@ -161,49 +171,55 @@ def get_network(name, batch_size, layout="NCHW", dtype="float32"):
     input_shape = (batch_size,) + image_shape
     output_shape = (batch_size, 1000)
 
-    if name == "mxnet":
-        # an example for mxnet model
-        from mxnet.gluon.model_zoo.vision import get_model
+    # an example for mxnet model
+    from mxnet.gluon.model_zoo.vision import get_model
 
-        assert layout == "NCHW"
+    assert layout == "NCHW"
 
-        block = get_model(args.model, pretrained=True)
-        mod, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
-        net = mod["main"]
-        net = relay.Function(
-            net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
-        )
-        mod = tvm.IRModule.from_expr(net)
+    block = get_model(name, pretrained=True)
+    mod, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
+    net = mod["main"]
+    net = relay.Function(
+        net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
+    )
+    mod = tvm.IRModule.from_expr(net)
 
-        desired_layouts = {'nn.conv2d': ['NHWC', 'default']}
-        # Convert the layout to NHWC
-        # RemoveUnunsedFunctions is used to clean up the graph.
-        seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
-                                        relay.transform.ConvertLayout(desired_layouts)])
-        with tvm.transform.PassContext(opt_level=3):
-            mod = seq(mod) 
+    desired_layouts = {'nn.conv2d': ['NHWC', 'default']}
+    # Convert the layout to NHWC
+    # RemoveUnunsedFunctions is used to clean up the graph.
+    seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
+                                    relay.transform.ConvertLayout(desired_layouts)])
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod) 
 
     return mod, params, input_shape, output_shape
-mod, params, input_shape, output_shape = get_network(network, batch_size, layout, dtype=dtype)
+if args.tune == True:
+    mod, params, input_shape, output_shape = get_network(args.model, batch_size, layout, dtype=dtype)
+else:
+    mod, params, input_shape, output_shape = get_network(dm, batch_size, layout, dtype=dtype)
 
-if not os.path.exists(lib_file):
-    '''
-    #tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
+
+if args.tune ==True:
+
+    tasks, task_weights = auto_scheduler.extract_tasks(mod["main"], params, target)
     def run_tuning():
         print("Begin tuning...")
         measure_ctx = auto_scheduler.LocalRPCMeasureContext(repeat=1, min_repeat_ms=300, timeout=10)
 
         tuner = auto_scheduler.TaskScheduler(tasks, task_weights,load_log_file=log_file)
         tune_option = auto_scheduler.TuningOptions(
-            num_measure_trials=500,  # change this to 20000 to achieve the best performance
+            num_measure_trials=300 * len(tasks),  # change this to 20000 to achieve the best performance
             runner=measure_ctx.runner,
             measure_callbacks=[auto_scheduler.RecordToFile(log_file)],
         )
 
         tuner.tune(tune_option)
-    #run_tuning()
-    '''
+    run_tuning()
+    print("Finish Tuning! Batch = {}, Network = {}".format(batch_size,dm))
+    exit()
 
+
+if not os.path.exists(lib_file):
     with auto_scheduler.ApplyHistoryBest(log_file):
         with tvm.transform.PassContext(opt_level=3, config={"relay.backend.use_auto_scheduler": True}):
             lib = relay.build(mod, target=target, params=params)
@@ -407,5 +423,3 @@ for line in print_result:
 fp.close()
 print("######################################")
 print("Used time:{:.2f}s".format(time.time() - start_time))
-gc.collect()
-exit()

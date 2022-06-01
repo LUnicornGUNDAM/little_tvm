@@ -207,7 +207,7 @@ img_dhash=mgr_dhash.dict();
 #img_dhash_pkg=mgr_dhash_pkg.dict()
 
 mgr_result = Manager()
-result=[]=mgr_result.list()
+result=mgr_result.list()
     
 def img_similarity_list(thread_info):
     thread_num = thread_info[0]
@@ -261,13 +261,15 @@ def img_similarity_compare(img_list1, img_list2):
         
         #if hash_flag and phash_flag and dhash_flag and dhashp_flag:
         if hash_flag and phash_flag and dhash_flag:
-            result.append(str(img1_path+" & "+img2_path)+
-                          "\nhash_result:"+str(hash_result)+
-                          "\nphash_result:"+str(phash_result)+
-                          "\ndhash_result:"+str(dhash_result)+
+            result.append([img1_path,img2_path,hash_result,phash_result,dhash_result])
+            
+        #    result.append(str(img1_path+" & "+img2_path)+
+        #                  "\nhash_result:"+str(hash_result)+
+        #                  "\nphash_result:"+str(phash_result)+
+        #                  "\ndhash_result:"+str(dhash_result)+
         #                  "\ndhash_result_pkg:"+str(dhash_result_pkg)+
-                          "\n"
-                          )
+        #                  "\n"
+        #                  )
     except:
         #print('check the following images:{:s} & {:s}\r'.format(img1_path,img2_path))
         file_result.write('check the following images:{:s} & {:s}\r'.format(img1_path,img2_path))
@@ -384,7 +386,7 @@ def get_dict_memory_size():
 
 ########### Pre-set Memory ##############
 machine_name = 'Cherudim GUNDAM'
-memory_speed = 1866 #in MHz
+memory_speed = 2800 #in MHz
 memory_channel = 4 
 memory_width = 64 #in Bits
 bit_to_byte = 8
@@ -392,8 +394,11 @@ theoretic_memory_putthrough = memory_speed * memory_width * memory_channel / bit
     
 from multiprocessing import Pool
 import time
+import shutil
+import os
 image_dict =[]
-file_result=open('result_opt.txt',mode='w')
+start_time = time.time()
+file_result=open('result_opt.txt',mode='w+')
 if __name__ == '__main__':
     from multiprocessing import cpu_count
     print("Total CPU:{}".format(cpu_count()))
@@ -427,9 +432,9 @@ if __name__ == '__main__':
                                                                     total_iop/1000/(e_hash_time-s_hash_time)/cpu_count()
                                                                     )
     )
-    print('#################################################\n')
+    print('#################################################')
     e_overhead_time=time.time()
-    print('Overhead time:{:.2f}s\n'.format(e_overhead_time-s_overhead_time))
+    print('Overhead time:{:.2f}s'.format(e_overhead_time-s_overhead_time))
     
     possible_combinations=len(image_dict)*(len(image_dict)-1)/2
     print("Total combinations:{}".format(str(int(possible_combinations))))
@@ -451,7 +456,7 @@ if __name__ == '__main__':
     pool.map(img_similarity_list, thread_combs)
     pool.close()
     pool.join()
-    
+    '''
     e_comp_time=time.time()
     s_overhead_time=time.time()
     dict_memory_size = get_dict_memory_size()
@@ -467,7 +472,7 @@ if __name__ == '__main__':
     print('#################################################\n')
     e_overhead_time=time.time()
     print('Overhead time:{:.2f}s\n'.format(e_overhead_time-s_overhead_time))
-    '''
+    
     for k in range(len(possible_combinations)):
         print(len(possible_combinations))
         #print(possible_combinations[k])
@@ -475,10 +480,23 @@ if __name__ == '__main__':
         img_similarity(possible_combinations[k][0],possible_combinations[k][1])
     '''
     
+    repeat_folder = "./images/repeat"
+    isexists = os.path.exists(repeat_folder)
+    if not isexists:
+        os.makedirs(repeat_folder)
     
-    print("result:")
     for i in result:
-        file_result.write(i)
+        shutil.move(i[0],repeat_folder)
+        shutil.move(i[1],repeat_folder)
+
+    print("Result stored in result_opt.txt. Total time:{:.2f}s".format(time.time()-start_time))
+    for i in result:
+        file_result.write(str(i[0]+" & "+i[1])+
+                      "\nhash_result:"+str(i[2])+
+                      "\nphash_result:"+str(i[3])+
+                      "\ndhash_result:"+str(i[4])+
+                      "\n"
+                      )
         #print("\r{:s}".format(i),end='\n')
     file_result.close()
     

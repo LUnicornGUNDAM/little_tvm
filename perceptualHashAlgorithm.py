@@ -217,11 +217,11 @@ def img_similarity_list(img_path):
         img_similarity_compare(img_path, image_dict[i])
     
     
-def img_similarity_compare(img_list1,img_list2):
+def img_similarity_compare(img_list1, img_list2):
     
     try:
-        img1_path=img_list1;
-        img2_path=img_list2;
+        img1_path=img_list1
+        img2_path=img_list2
         #print('{:s} & {:s}'.format(img1_path,img2_path), end="\r", flush=True)
         #print(img_hash.get(img_list[0]))
         hash_flag=False
